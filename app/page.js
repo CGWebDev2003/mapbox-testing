@@ -1,4 +1,4 @@
-import MyMap from "./Map";
+import MyMap from "./components/map/Map";
 import styles from "./page.module.css";
 
 export default function Home() {
