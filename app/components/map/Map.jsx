@@ -1,6 +1,6 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import "mapbox-gl/dist/mapbox-gl.css";
 import mapboxgl from "mapbox-gl";
 
 mapboxgl.accessToken =
@@ -10,43 +10,36 @@ const MyMap = () => {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
 	const marker = useRef(null);
-	const [lng, setLng] = useState(13.405); // Standardwert für Berlin
-	const [lat, setLat] = useState(52.52);
-	const [zoom] = useState(10);
 
-	// Geolocation abrufen
-	useEffect(() => {
-		navigator.geolocation.getCurrentPosition(
-			(position) => {
-				setLng(position.coords.longitude);
-				setLat(position.coords.latitude);
-			},
-			(error) =>
-				console.error("Fehler beim Abrufen der Position:", error),
-			{ enableHighAccuracy: true }
-		);
-	}, []);
+	// Start position Leipzig
+	const [lng, setLng] = useState(12.350865);
+	const [lat, setLat] = useState(51.345843);
+	const [zoom] = useState(14);
 
-	// Map initialisieren (nur einmal)
+	// Initialize Map (only once)
 	useEffect(() => {
-		if (map.current || !mapContainer.current) return; // Verhindert doppelte Initialisierung
+		if (map.current || !mapContainer.current) return;
 
 		map.current = new mapboxgl.Map({
 			container: mapContainer.current,
-			style: "mapbox://styles/mapbox/streets-v11",
-			center: [lng, lat], // Startposition
+			style: "mapbox://styles/mapbox/streets-v12",
+			center: [lng, lat],
 			zoom: zoom,
 		});
 
-		// Marker initialisieren
+		// Initialize Marker
 		marker.current = new mapboxgl.Marker()
 			.setLngLat([lng, lat])
 			.addTo(map.current);
 
-		return () => map.current?.remove();
-	}, []); // Nur beim ersten Rendern ausführen
+		// Ensure cleanup on unmount
+		return () => {
+			map.current?.remove();
+			map.current = null;
+		};
+	}, []); // Run only once on mount
 
-	// Position updaten, wenn lng oder lat sich ändern
+	// Update Map Position if lng or lat changes
 	useEffect(() => {
 		if (map.current) {
 			map.current.flyTo({ center: [lng, lat], essential: true });
@@ -54,7 +47,57 @@ const MyMap = () => {
 		if (marker.current) {
 			marker.current.setLngLat([lng, lat]);
 		}
-	}, [lng, lat]); // Map zentrieren, wenn sich die Position ändert
+	}, [lng, lat]);
+
+	// Add Route Layer after map loads
+	useEffect(() => {
+		if (!map.current) return;
+
+		const onLoad = () => {
+			map.current.addSource("route", {
+				type: "geojson",
+				data: {
+					type: "Feature",
+					properties: {},
+					geometry: {
+						type: "LineString",
+						coordinates: [
+							[12.350865, 51.345843],
+							[12.353526, 51.341218],
+							[12.358526, 51.342036],
+							[12.368353, 51.334864],
+						],
+					},
+				},
+			});
+
+			map.current.addLayer({
+				id: "route",
+				type: "line",
+				source: "route",
+				layout: {
+					"line-join": "round",
+					"line-cap": "round",
+				},
+				paint: {
+					"line-color": "cyan",
+					"line-opacity": 0.7,
+					"line-width": 7,
+				},
+			});
+		};
+
+		map.current.on("load", onLoad);
+
+		// Cleanup function
+		return () => {
+			if (map.current?.getSource("route")) {
+				map.current.removeLayer("route");
+				map.current.removeSource("route");
+			}
+			map.current.off("load", onLoad);
+		};
+	}, []);
 
 	return <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />;
 };
